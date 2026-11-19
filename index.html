@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07101d">
+  <title>DEEPWELL — Rare-Answer Trivia</title>
+  <style>
+    :root {
+      --ink:#eefbff; --muted:#96b3c2; --deep:#07101d; --panel:rgba(8,29,43,.82);
+      --cyan:#62e7ff; --cyan2:#19aeca; --gold:#ffd166; --danger:#ff6b7a;
+      --common:#a7b7c1; --familiar:#55d9bd; --uncommon:#62b6ff;
+      --rare:#a98cff; --very:#ff78cf; --singular:#ffd166;
+      --safe-top:env(safe-area-inset-top,0px); --safe-bottom:env(safe-area-inset-bottom,0px);
+      --text-scale:1;
+    }
+    *{box-sizing:border-box}
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--deep);color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    button,input{font:inherit}
+    button{min-height:48px;border:1px solid rgba(174,238,255,.18);border-radius:14px;color:var(--ink);background:rgba(12,48,65,.82);cursor:pointer;touch-action:manipulation}
+    button:hover{border-color:rgba(98,231,255,.65)}
+    button:active{transform:scale(.98)}
+    button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+    #scene{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+    .vignette{position:fixed;inset:0;pointer-events:none;z-index:1;box-shadow:inset 0 0 160px rgba(0,0,0,.72)}
+    #app{position:fixed;z-index:2;inset:var(--safe-top) 0 var(--safe-bottom);display:grid;place-items:center;padding:clamp(12px,3vw,28px);font-size:calc(16px * var(--text-scale))}
+    .screen{display:none;width:min(920px,100%);max-height:100%;overflow:auto;scrollbar-width:none}
+    .screen.active{display:block;animation:rise .32s cubic-bezier(.2,.8,.2,1)}
+    @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+    .panel{background:var(--panel);border:1px solid rgba(169,230,246,.16);border-radius:24px;padding:clamp(16px,4vw,30px);box-shadow:0 24px 80px rgba(0,0,0,.32);backdrop-filter:blur(14px)}
+    .title{text-align:center}.title h1{font-size:clamp(38px,10vw,76px);letter-spacing:.14em;margin:0;text-shadow:0 0 28px rgba(98,231,255,.35)}
+    .title p{color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+    .menu{display:grid;gap:10px;max-width:520px;margin:20px auto 0}.menu-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .primary{background:linear-gradient(135deg,var(--cyan2),#08758b);border-color:rgba(164,248,255,.5);font-weight:800}
+    .subtle{background:rgba(5,24,36,.72)}.small{min-height:48px;padding:10px 14px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .prompt-card{text-align:center}.prompt-card h2{font-size:clamp(24px,6vw,44px);margin:12px 0 22px}
+    .depth{color:var(--cyan);font-weight:800;letter-spacing:.08em}.counter{color:var(--muted)}
+    .timer{width:66px;height:66px;border-radius:50%;display:grid;place-items:center;margin:0 auto 8px;font-weight:900;border:3px solid var(--cyan);box-shadow:0 0 20px rgba(98,231,255,.12)}
+    .answer-row{display:grid;grid-template-columns:1fr auto;gap:8px;max-width:680px;margin:auto}
+    #answerInput{width:100%;min-height:56px;border-radius:14px;border:1px solid rgba(169,230,246,.24);background:rgba(2,14,24,.78);color:var(--ink);padding:12px 16px;font-size:18px}
+    #submitBtn{min-width:120px}.meter{height:8px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin:14px 0}
+    #depthFill{height:100%;width:0;background:linear-gradient(90deg,var(--cyan2),var(--cyan),var(--gold));transition:width .5s}
+    .reveal{text-align:center}.tier{font-size:clamp(26px,7vw,52px);font-weight:900;margin:12px}.points{font-size:clamp(42px,12vw,84px);font-weight:950;color:var(--gold)}
+    .grid{display:grid;gap:10px}.packs{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .pack{padding:14px;text-align:left}.pack strong{display:block}.pack span{color:var(--muted);font-size:.85em}
+    .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.stat{padding:16px;text-align:center;background:rgba(255,255,255,.035);border-radius:16px}.stat b{display:block;font-size:28px;color:var(--cyan)}
+    .settings{display:grid;gap:12px}.setting{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0}.setting label{flex:1}
+    select,input[type=range]{max-width:180px}.setting input[type=range]{width:180px}.result-row{display:grid;grid-template-columns:54px 1fr auto;gap:10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.07);padding:8px 0}
+    .bar{height:6px;background:rgba(255,255,255,.07);border-radius:99px}.bar i{display:block;height:100%;border-radius:99px;background:var(--cyan)}
+    .missed{color:var(--muted);font-size:.9em}.share-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    .toast{position:fixed;z-index:10;left:50%;bottom:calc(18px + var(--safe-bottom));transform:translate(-50%,20px);opacity:0;background:#102938;border:1px solid rgba(98,231,255,.3);border-radius:12px;padding:12px 16px;transition:.25s;pointer-events:none}
+    .toast.show{opacity:1;transform:translate(-50%,0)}.hidden{display:none!important}
+    #pauseOverlay{position:fixed;z-index:20;inset:0;display:none;place-items:center;background:rgba(2,8,14,.75)}#pauseOverlay.show{display:grid}
+    @media(max-width:560px){.answer-row{grid-template-columns:1fr}.menu-row,.share-row{grid-template-columns:1fr}.packs{grid-template-columns:1fr}.panel{border-radius:18px}.result-row{grid-template-columns:44px 1fr}.result-row em{grid-column:2}}
+    @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+  <canvas id="scene" aria-hidden="true"></canvas><div class="vignette"></div>
+  <main id="app" aria-live="off">
+    <section id="titleScreen" class="screen active">
+      <div class="panel title">
+        <h1>DEEPWELL</h1><p>Rare-answer abyssal recall</p>
+        <div class="menu">
+          <button id="dailyBtn" class="primary">Daily Dive</button>
+          <button id="endlessBtn">Endless Dive</button>
+          <div class="menu-row"><button id="packsBtn" class="subtle">Packs</button><button id="howBtn" class="subtle">How to Play</button></div>
+          <div class="menu-row"><button id="statsBtn" class="subtle">Stats</button><button id="settingsBtn" class="subtle">Settings</button></div>
+        </div>
+      </div>
+    </section>
+    <section id="gameScreen" class="screen">
+      <div class="panel prompt-card">
+        <div class="topbar"><button id="pauseBtn" class="small">Ⅱ Pause</button><span id="promptCounter" class="counter"></span></div>
+        <div id="timer" class="timer">20</div><h2 id="promptText"></h2>
+        <div class="answer-row"><input id="answerInput" maxlength="80" autocomplete="off" spellcheck="false" aria-label="Your answer" placeholder="Type one answer"><button id="submitBtn" class="primary">Dive</button></div>
+        <div class="meter"><div id="depthFill"></div></div><div id="liveDepth" class="depth">0 m</div>
+      </div>
+    </section>
+    <section id="revealScreen" class="screen"><div class="panel reveal"><div id="revealTier" class="tier"></div><div id="revealPoints" class="points">+0</div><div id="revealName" class="depth"></div><button id="nextBtn" class="primary" style="width:min(320px,100%);margin-top:16px">Next prompt</button></div></section>
+    <section id="packsScreen" class="screen"><div class="panel"><div class="topbar"><h2>Packs</h2><button class="small backBtn">Back</button></div><div id="packGrid" class="grid packs"></div></div></section>
+    <section id="resultsScreen" class="screen"><div class="panel"><div class="topbar"><h2>Dive complete</h2><span id="resultDepth" class="depth"></span></div><div id="resultRows"></div><div class="share-row"><button id="shareBtn" class="primary">Share dive</button><button id="copyBtn">Copy result</button></div><div class="share-row"><button id="againBtn">Play Endless</button><button class="backBtn">Title</button></div></div></section>
+    <section id="statsScreen" class="screen"><div class="panel"><div class="topbar"><h2>Stats</h2><button class="small backBtn">Back</button></div><div class="stats" id="statsGrid"></div></div></section>
+    <section id="settingsScreen" class="screen"><div class="panel"><div class="topbar"><h2>Settings</h2><button class="small backBtn">Back</button></div><div class="settings">
+      <div class="setting"><label for="volumeRange">Master volume</label><input id="volumeRange" type="range" min="0" max="100" value="60"></div>
+      <div class="setting"><label for="hapticsToggle">Haptics</label><input id="hapticsToggle" type="checkbox" checked></div>
+      <div class="setting"><label for="reducedToggle">Reduced motion</label><input id="reducedToggle" type="checkbox"></div>
+      <div class="setting"><label for="qualitySelect">Graphics quality</label><select id="qualitySelect"><option>Auto</option><option>Low</option><option>Medium</option><option>High</option><option>Ultra</option></select></div>
+      <div class="setting"><label for="colorToggle">Colorblind-safe palette</label><input id="colorToggle" type="checkbox"></div>
+      <div class="setting"><label for="timerRange">Endless timer</label><input id="timerRange" type="range" min="10" max="30" value="20"></div>
+      <div class="setting"><label for="textRange">Text size</label><input id="textRange" type="range" min="80" max="120" value="100"></div>
+      <div class="setting"><label for="hintsToggle">Hints (disables rarity bonuses)</label><input id="hintsToggle" type="checkbox"></div>
+    </div><button id="exportBtn" class="subtle" style="width:100%;margin-top:10px">Export unrecognized answers</button></div></section>
+    <section id="howScreen" class="screen"><div class="panel"><div class="topbar"><h2>How to dive</h2><button class="small backBtn">Back</button></div><p>Each round has 7 prompts. Type one valid answer before the timer runs out.</p><p>Built-in rarity scores estimate how uncommon an answer is. Obvious answers earn fewer points; obscure valid answers earn more. <b>Rarity is estimated from this built-in dataset, not live global player data.</b></p><p>Duplicate answers within a dive earn 0 points. Each point adds 10 meters. Daily Dive uses one locked 20-second timer.</p></div></section>
+  </main>
+  <div id="pauseOverlay"><div class="panel" style="text-align:center"><h2>Dive paused</h2><button id="resumeBtn" class="primary">Resume</button></div></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="srLive" class="hidden" aria-live="assertive"></div>
+
+  <script>
+  'use strict';
+  /* CONFIG */
+  const GAME_TITLE='DEEPWELL', METERS_PER_POINT=10;
+  const TIER_NAMES=['Common','Familiar','Uncommon','Rare','Very Rare','Singular'];
+  const TIER_COLORS=['#a7b7c1','#55d9bd','#62b6ff','#a98cff','#ff78cf','#ffd166'];
+
+  /* DATA */
+  // One editable dataset block: 12 categories × 20 prompts.
+  const PROMPT_DATA = [
+    {name:'Geography',icon:'G',prompts:['A country in Africa','A country in Europe','A country in Asia','A country in South America','A capital city','An island country','A U.S. state','A Canadian province','A world ocean','A major river','A desert','A mountain range','A capital in Africa','A city in Japan','A city in India','A European capital','A sea','A famous landmark','A language spoken in Africa','A national flag color']},
+    {name:'Movies',icon:'M',prompts:['A Pixar film','An animated Disney film','A superhero movie','A sci-fi movie','A comedy film','A horror film','A Best Picture winner','A 1980s movie','A James Bond film','A Star Wars film','A movie starring Tom Hanks','A movie directed by Spielberg','A fantasy film','A sequel','An Oscar-winning actor','A movie musical','A documentary','A stop-motion film','A quote-worthy movie','A film set in space']},
+    {name:'Food',icon:'F',prompts:['A fruit','A vegetable','A cheese','A type of bread','A noodle dish','A breakfast food','A soup','A spice','A seafood','A dessert','A pizza topping','An apple variety','A berry','A cuisine','A sausage','A nut','A beverage','A rice dish','A herb','A chocolate brand']},
+    {name:'Science',icon:'S',prompts:['A planet','An element','A unit of measurement','A scientific instrument','A dinosaur','A branch of biology','An organ','A blood type','A constellation','A particle','A scientist','A chemical compound','A weather event','A moon','A mammal','A reptile','A rock type','A type of energy','A disease','A scientific law']},
+    {name:'Gaming',icon:'X',prompts:['A video game','A gaming console','A Mario character','A Pokémon','A first-person shooter','A fantasy game','A racing game','A fighting game','A board game','A tabletop RPG','An indie game','A game character','A Nintendo game','A PC game franchise','A PlayStation exclusive','A puzzle game','A retro arcade game','A strategy game','An esports title','A handheld console']},
+    {name:'Music',icon:'U',prompts:['A musical instrument','A rock band','A pop singer','A hip-hop artist','A music genre','A song by Queen','A Beatles song','A classical composer','A wind instrument','A music festival','A jazz musician','A drum kit part','A Grammy winner','A boy band','A girl group','A 1990s song','A film soundtrack','A musical key','A country artist','A record label']},
+    {name:'Sports',icon:'T',prompts:['A soccer team','A basketball team','A sport','An Olympic sport','A tennis champion','An NBA player','A football team','A baseball team','A cricket team','A Formula 1 driver','A Winter Olympic sport','A boxing champion','A golf tournament','A stadium','A sport played on ice','A rugby team','A chess player','A baseball position','A marathon location','A sports equipment item']},
+    {name:'History',icon:'H',prompts:['An ancient civilization','A Roman emperor','A U.S. president','A world explorer','An invention','A famous battle','A European monarchy','A medieval castle','A historical document','A 20th-century war','A queen','An empire','A ship in history','A pyramid','A Renaissance artist','A reformer','A U.S. historical event','A political leader','A museum','A historical year']},
+    {name:'Nature',icon:'N',prompts:['A forest animal','An ocean animal','A bird','A flower','A tree','A poisonous plant','A freshwater fish','A shark','A primate','An insect','A venomous snake','A coral reef location','A cloud type','A natural disaster','A freshwater lake','A national park','A fungus','A nocturnal animal','A mammal of the Arctic','A bird of prey']},
+    {name:'Books',icon:'B',prompts:['A novel','A fairy tale','A Shakespeare play','A fantasy novel','A mystery author','A children\'s book','A comic book','A famous poet','A dystopian novel','A book series','A classic author','A book turned into a film','A mythology collection','A fictional detective','A horror novel','A Pulitzer winner','A graphic novel','A book with a number in title','A Pulitzer-winning author','A literary prize']},
+    {name:'Technology',icon:'C',prompts:['A programming language','A web browser','A social network','A smartphone brand','A programming concept','A database','A technology company','A computer brand','A software license','A keyboard shortcut','A file format','A computer language','An open-source project','A game engine','A network protocol','A cloud service','A video codec','A circuit component','A cybersecurity term','A smartphone operating system']},
+    {name:'Culture',icon:'L',prompts:['A language','A religion','A traditional dance','A cultural festival','A national dish','A board game','A fashion designer','A currency','A musical scale','A museum','A mythological creature','A folk tale','A public holiday','A wedding tradition','A world monument','A famous painting','A sculpture','A theater genre','A cultural symbol','A musical instrument']}
+  ];
+
+  const ANSWER_POOLS={
+    Geography:['Kenya','Nigeria','South Africa','Egypt','Morocco','Ethiopia','Ghana','Uganda','Tanzania','Algeria','Senegal','Mali','Angola','Namibia','Botswana','Zambia','Mozambique','Zimbabwe','Rwanda','Tunisia','Gabon','Benin','Cameroon','Madagascar','Mauritius','Lesotho','Eswatini','Somalia','Sudan','Chad'],
+    Movies:['Toy Story','Finding Nemo','The Incredibles','Monsters Inc','Wall-E','Up','Ratatouille','Coco','Inside Out','Soul','Luca','Turning Red','Cars','A Bug’s Life','Brave','Onward','Elemental','Bolt','Frozen','Moana','Zootopia','Shrek','Spider-Man','The Lion King','Titanic','Inception','Casablanca','Jaws','Alien','The Godfather'],
+    Food:['Apple','Banana','Orange','Pear','Peach','Plum','Grape','Cherry','Strawberry','Blueberry','Mango','Papaya','Pineapple','Watermelon','Cantaloupe','Kiwi','Lemon','Lime','Coconut','Avocado','Tomato','Carrot','Potato','Broccoli','Spinach','Turnip','Pumpkin','Onion','Garlic','Celery','Radish'],
+    Science:['Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune','Pluto','Hydrogen','Helium','Carbon','Oxygen','Nitrogen','Gold','Silver','Iron','Copper','Sodium','Neon','DNA','RNA','Photon','Electron','Quark','Gravity','Magnetism','Friction','Velocity','Entropy'],
+    Gaming:['Mario','Luigi','Peach','Yoshi','Bowser','Wario','Zelda','Link','Pikachu','Charizard','Bulbasaur','Squirtle','Mewtwo','Sonic','Kirby','Samus','Donkey Kong','Pac-Man','Master Chief','Kratos','Minecraft','Tetris','Fortnite','Halo','Portal','Among Us','Overwatch','Celeste','Hades','Metroid','Stardew Valley'],
+    Music:['Piano','Guitar','Violin','Drums','Flute','Trumpet','Saxophone','Clarinet','Oboe','Cello','Harpsichord','Harp','Trombone','Tuba','Ukulele','Banjo','Sitar','Accordion','Synthesizer','Harmonica','Queen','The Beatles','Taylor Swift','Beyoncé','Daft Punk','Coldplay','Nirvana','Radiohead','ABBA','Fleetwood Mac'],
+    Sports:['Soccer','Basketball','Baseball','Football','Hockey','Tennis','Golf','Cricket','Rugby','Swimming','Volleyball','Boxing','Cycling','Running','Archery','Skiing','Surfing','Wrestling','Gymnastics','Badminton','Lionel Messi','Pelé','Usain Bolt','Michael Jordan','LeBron James','Serena Williams','Roger Federer','Muhammad Ali','Sachin Tendulkar','Wayne Gretzky'],
+    History:['Ancient Egypt','Ancient Rome','Ancient Greece','Mesopotamia','The Maya','The Aztec','The Inca','Persia','Byzantium','The Ottoman Empire','Julius Caesar','Augustus','Cleopatra','Nero','Napoleon','Alexander the Great','Genghis Khan','Joan of Arc','Leonardo da Vinci','Marie Curie','Printing Press','Steam Engine','Compass','Telephone','Light Bulb','Internet','The Wheel','Writing','Gunpowder','Camera'],
+    Nature:['Lion','Tiger','Bear','Wolf','Fox','Deer','Elephant','Giraffe','Zebra','Rhino','Koala','Kangaroo','Penguin','Eagle','Owl','Falcon','Dolphin','Whale','Shark','Octopus','Orchid','Rose','Tulip','Oak','Maple','Pine','Fern','Mushroom','Jellyfish','Coral'],
+    Books:['Hamlet','Macbeth','Romeo and Juliet','The Odyssey','The Iliad','Pride and Prejudice','Dune','Moby Dick','Frankenstein','Dracula','1984','The Hobbit','Harry Potter','The Catcher in the Rye','The Great Gatsby','To Kill a Mockingbird','The Lord of the Rings','Jane Eyre','Little Women','Sherlock Holmes','Charles Dickens','Jane Austen','William Shakespeare','Agatha Christie','Stephen King','J. R. R. Tolkien','George Orwell','Virginia Woolf','Mark Twain','Octavia Butler'],
+    Technology:['JavaScript','Python','Java','Ruby','Go','Rust','Swift','Kotlin','PHP','Perl','R','SQL','HTML','CSS','TypeScript','Dart','Lua','Chrome','Firefox','Safari','Edge','Opera','Git','Linux','React','Database','TCP/IP','Visual Basic','Assembly','Elixir','Haskell'],
+    Culture:['English','Spanish','French','Mandarin','Arabic','Hindi','Portuguese','German','Japanese','Korean','Italian','Russian','Bengali','Urdu','Dutch','Swedish','Greek','Hebrew','Latin','Swahili','Christianity','Islam','Judaism','Buddhism','Hinduism','Shinto','Sikhism','Taoism','Bahá’í','Confucianism']
+  };
+
+  /* STATE */
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  const memory=new Map();
+  const store={
+    get(k,f=null){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(e){return memory.has(k)?memory.get(k):f}},
+    set(k,v){memory.set(k,v);try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+  const settings=Object.assign({volume:.6,haptics:true,reduced:false,quality:'Auto',colorblind:false,timer:20,text:100,hints:false},store.get('deepwell_settings',{}));
+  const stats=Object.assign({games:0,best:0,total:0,streak:0,lastDate:'',histogram:Array(6).fill(0),history:[]},store.get('deepwell_stats',{}));
+  let state={mode:'',daily:false,prompts:[],index:0,points:0,depth:0,answers:[],used:[],time:20,remaining:20,timerId:null,pause:false,reveal:false,unrecognized:[]};
+  function saveStats(){store.set('deepwell_stats',stats)}
+  function saveSettings(){store.set('deepwell_settings',settings)}
+
+  /* RNG */
+  function mulberry32(seed){return function(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+  function hashString(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+  function localDate(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+  function shuffle(a,rng){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+
+  /* DATA VALIDATION & MATCHING */
+  function normalize(s){
+    return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ').replace(/^(the|a|an)\s+/, '');
+  }
+  function buildPrompts(categoryName,mode){
+    const cat=PROMPT_DATA.find(c=>c.name===categoryName)||PROMPT_DATA[0];
+    return cat.prompts.map((text,i)=>{
+      const names=ANSWER_POOLS[cat.name]||ANSWER_POOLS.Geography;
+      const accepted=names.map((name,j)=>({names:[name],rarity:j===names.length-1?100:5+(j*3)%96}));
+      return {text,promptCategory:cat.name,accepted};
+    });
+  }
+  function dailyPrompts(){
+    const date=localDate(),rng=mulberry32(hashString(date));
+    const chosen=shuffle(PROMPT_DATA,rng).slice(0,7);
+    return chosen.map((cat,i)=>{
+      const pool=ANSWER_POOLS[cat.name]||ANSWER_POOLS.Geography;
+      const promptText=cat.prompts[Math.floor(rng()*cat.prompts.length)];
+      const accepted=pool.map((name,j)=>({names:[name],rarity:j===pool.length-1?100:5+(j*3)%96}));
+      return {text:promptText,promptCategory:cat.name,accepted};
+    });
+  }
+  function distance(a,b){
+    const m=a.length,n=b.length,dp=Array.from({length:m+1},()=>Array(n+1).fill(0));
+    for(let i=0;i<=m;i++)dp[i][0]=i;for(let j=0;j<=n;j++)dp[0][j]=j;
+    for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+    return dp[m][n];
+  }
+  function matchAnswer(prompt,input){
+    const normalized=normalize(input);if(!normalized)return null;
+    for(const item of prompt.accepted){
+      if(item.names.some(name=>normalize(name)===normalized))return {item,exact:true};
+    }
+    if(normalized.length<4)return null;
+    let best=null;
+    for(const item of prompt.accepted){
+      for(const name of item.names){
+        const target=normalize(name),d=distance(normalized,target);
+        if(target.length>=4&&d<=Math.max(1,Math.floor(target.length*.25))){
+          const score=d/Math.max(target.length,1);
+          if(!best||score<best.score)best={item,name,exact:false,score};
+        }
+      }
+    }
+    return best;
+  }
+  function tierFor(rarity){const clamped=Math.max(1,Math.min(100,rarity));return clamped<=20?0:clamped<=40?1:clamped<=60?2:clamped<=80?3:clamped<=99?4:5}
+
+  /* STORAGE & UI */
+  function showScreen(id){
+    $$('.screen').forEach(s=>s.classList.remove('active'));
+    const el=$(id);el.classList.add('active');
+  }
+  function toast(message){const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200)}
+  function dailyCompleted(){const d=store.get('deepwell_daily',null);return d&&d.date===localDate()?d:null}
+  function updateTitle(){
+    const done=dailyCompleted(),btn=$('#dailyBtn');
+    if(done){
+      const now=new Date(),tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+      const mins=Math.max(0,Math.ceil((tomorrow-now)/60000)),hours=Math.floor(mins/60),left=mins%60;
+      btn.textContent=`Completed ${done.depth} m · ${hours}h ${left}m`;
+      btn.classList.remove('primary');
+    }
+    else{btn.textContent='Daily Dive';btn.classList.add('primary')}
+  }
+  function startDive(mode,category){
+    if(mode==='daily'){
+      if(dailyCompleted()){toast('Today’s dive is already complete');return}
+      state={mode:'daily',daily:true,prompts:dailyPrompts(),index:0,points:0,depth:0,answers:[],used:[],time:20,remaining:20,timerId:null,pause:false,reveal:false,unrecognized:[]};
+      store.set('deepwell_daily',{date:localDate(),started:true,depth:0});
+    }else{
+      const rng=mulberry32(Date.now()>>>0);
+      const packPrompts=category?shuffle(buildPrompts(category,'pack'),rng):shuffle(PROMPT_DATA,rng).slice(0,7).map(c=>{
+        const prompts=buildPrompts(c.name,'pack');
+        return prompts[Math.floor(rng()*prompts.length)];
+      });
+      state={mode:'endless',daily:false,prompts:packPrompts.slice(0,7),index:0,points:0,depth:0,answers:[],used:[],time:settings.timer,remaining:settings.timer,timerId:null,pause:false,reveal:false,unrecognized:[]};
+    }
+    ensureAudio();showScreen('#gameScreen');beginPrompt();
+  }
+  function beginPrompt(){
+    clearInterval(state.timerId);state.reveal=false;state.remaining=state.time;
+    const prompt=state.prompts[state.index];
+    $('#promptCounter').textContent=`Prompt ${state.index+1} / 7`;
+    $('#promptText').textContent=prompt.text;
+    $('#answerInput').value='';$('#answerInput').disabled=false;$('#submitBtn').disabled=false;
+    $('#liveDepth').textContent=`${state.depth} m`;$('#depthFill').style.width=`${Math.min(100,state.depth/50)}%`;
+    $('#timer').textContent=Math.ceil(state.remaining);
+    showScreen('#gameScreen');setTimeout(()=>$('#answerInput').focus(),50);
+    state.deadline=performance.now()+state.remaining*1000;
+    state.timerId=setInterval(tick,100);
+  }
+  function tick(){
+    if(state.pause||document.hidden)return;
+    state.remaining=Math.max(0,(state.deadline-performance.now())/1000);
+    $('#timer').textContent=Math.ceil(state.remaining);
+    if(state.remaining<=5&&Math.ceil(state.remaining)!==tick.last){tick.last=Math.ceil(state.remaining);timerTick()}
+    if(state.remaining<=0)submitAnswer(true);
+  }
+  let confirmMatch=null;
+  function submitAnswer(timeout=false){
+    if(state.reveal)return;
+    clearInterval(state.timerId);
+    let result=null,raw=$('#answerInput').value.trim(),normalized=normalize(raw),points=0,tier=0,name='',message='';
+    if(!timeout&&raw){
+      if(state.used.includes(normalized)){message='Duplicate answer — 0 points';result=null}
+      else{
+        state.used.push(normalized);result=matchAnswer(state.prompts[state.index],raw);
+        if(result&&!result.exact){
+          confirmMatch=result;$('#answerInput').disabled=true;$('#submitBtn').disabled=true;
+          if(confirm(`Did you mean “${result.name}”?`)){result=result}else{result=null}
+          $('#answerInput').disabled=false;$('#submitBtn').disabled=false;
+        }
+        if(result&&result.item){
+          let rarity=result.item.rarity;if(settings.hints)rarity=Math.min(rarity,20);
+          tier=tierFor(rarity);points=rarity;name=result.item.names[0];state.used.push(normalized);
+        }else{state.unrecognized.push(raw)}
+      }
+    }else if(timeout){message='Time — 0 points';sonar()}
+    if(!points&&message==='')message='No recognized answer — 0 points';
+    state.reveal=true;state.answers.push({prompt:state.prompts[state.index].text,name:name||raw||'—',points,tier,message,rarity:points});
+    state.points+=points;state.depth=state.points*METERS_PER_POINT;
+    if(points){chime(tier);vibrate(tier>3?[30,30,50]:30)}
+    revealAnswer(points,tier,name||message);
+  }
+  function revealAnswer(points,tier,name){
+    $('#revealTier').textContent=points?TIER_NAMES[tier]: 'Not recognized';
+    $('#revealTier').style.color=points?TIER_COLORS[tier]: 'var(--danger)';
+    $('#revealPoints').textContent=`+${points}`;
+    $('#revealName').textContent=name;
+    $('#nextBtn').textContent=state.index===6?'See results':'Next prompt';
+    showScreen('#revealScreen');
+  }
+  function nextPrompt(){
+    if(state.index<6){state.index++;beginPrompt()}
+    else finishDive();
+  }
+
+  function finishDive(){
+    clearInterval(state.timerId);
+    const depth=state.depth;
+    stats.games++;stats.total+=depth;if(depth>stats.best)stats.best=depth;
+    state.answers.forEach(a=>{if(a.points>0)stats.histogram[a.tier]=(stats.histogram[a.tier]||0)+1});
+    const today=localDate();
+    if(stats.lastDate!==today){
+      const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+      const yesterdayKey=`${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`;
+      stats.streak=stats.lastDate===yesterdayKey?stats.streak+1:1;stats.lastDate=today;
+    }
+    stats.history.push({date:today,depth,mode:state.mode});stats.history=stats.history.slice(-100);
+    saveStats();
+    if(state.daily)store.set('deepwell_daily',{date:today,started:true,depth,answers:state.answers});
+    if(state.unrecognized.length)store.set('deepwell_unrecognized',Array.from(new Set((store.get('deepwell_unrecognized',[])||[]).concat(state.unrecognized))).slice(-500));
+    renderResults();showScreen('#resultsScreen');updateTitle();
+  }
+  function renderResults(){
+    $('#resultDepth').textContent=`${state.depth} m`;
+    $('#resultRows').innerHTML='';
+    state.answers.forEach((a,i)=>{
+      const row=document.createElement('div');row.className='result-row';
+      const col=document.createElement('b');col.textContent=`${i+1}`;
+      const mid=document.createElement('div');const title=document.createElement('div');title.textContent=a.prompt;
+      const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=`${Math.min(100,a.points)}%`;if(a.points)fill.style.background=TIER_COLORS[a.tier];bar.append(fill);
+      const missed=(state.prompts[i]?.accepted||[]).slice().sort((x,y)=>y.rarity-x.rarity).filter(x=>!normalize(a.name)||(normalize(x.names[0])!==normalize(a.name))).slice(0,3).map(x=>x.names[0]).join(' · ');
+      const missedEl=document.createElement('div');missedEl.className='missed';missedEl.textContent=missed?'Missed: '+missed:'';
+      mid.append(title,bar,missedEl);
+      const score=document.createElement('div');score.innerHTML=`<b>${a.points} pts</b><br><span class="missed">${a.points?TIER_NAMES[a.tier]:a.message}</span>`;
+      row.append(col,mid,score);
+      $('#resultRows').append(row);
+    });
+  }
+  function shareText(){
+    const boxes=['⬛','🟦','🟩','🟪','🩷','🟨'];
+    const tiers=state.answers.map(a=>a.points?boxes[a.tier]:'⬜').join('');
+    return `${GAME_TITLE} — ${state.daily?'Daily Dive':'Endless Dive'}\n${state.depth} m | ${state.points} pts\n${tiers}\nRare-answer abyssal recall`;
+  }
+  async function shareResult(copyOnly=false){
+    const text=shareText();
+    if(!copyOnly&&navigator.share){try{await navigator.share({title:GAME_TITLE,text});return}catch(e){}}
+    try{await navigator.clipboard.writeText(text);toast('Result copied')}catch(e){const area=document.createElement('textarea');area.value=text;document.body.append(area);area.select();document.execCommand('copy');area.remove();toast('Result copied')}
+  }
+  function renderStats(){
+    const grid=$('#statsGrid');grid.innerHTML='';
+    const average=stats.games?Math.round(stats.total/stats.games):0;
+    const vals=[['Games',stats.games],['Streak',stats.streak+' dives'],['Best',stats.best+' m'],['Average',average+' m']];
+    vals.forEach(v=>{const el=document.createElement('div');el.className='stat';el.innerHTML=`<b>${v[1]}</b>${v[0]}`;grid.append(el)});
+  }
+  function renderPacks(){
+    const grid=$('#packGrid');grid.innerHTML='';
+    PROMPT_DATA.forEach(cat=>{
+      const b=document.createElement('button');b.className='pack';b.innerHTML=`<strong>${cat.icon} ${cat.name}</strong><span>20 prompts · estimated rarity</span>`;
+      b.onclick=()=>startDive('pack',cat.name);grid.append(b);
+    });
+  }
+  function updateSettingsUI(){
+    $('#volumeRange').value=Math.round(settings.volume*100);$('#hapticsToggle').checked=settings.haptics;
+    $('#reducedToggle').checked=settings.reduced;$('#qualitySelect').value=settings.quality;$('#colorToggle').checked=settings.colorblind;
+    $('#timerRange').value=settings.timer;$('#textRange').value=settings.text;$('#hintsToggle').checked=settings.hints;
+    document.documentElement.style.setProperty('--text-scale',settings.text/100);
+  }
+  function bindSettings(){
+    $('#volumeRange').oninput=e=>{settings.volume=+e.target.value/100;saveSettings()};
+    $('#hapticsToggle').onchange=e=>{settings.haptics=e.target.checked;saveSettings()};
+    $('#reducedToggle').onchange=e=>{settings.reduced=e.target.checked;saveSettings();applyPalette()};
+    $('#qualitySelect').onchange=e=>{settings.quality=e.target.value;saveSettings();setQuality()};
+    $('#colorToggle').onchange=e=>{settings.colorblind=e.target.checked;saveSettings();applyPalette()};
+    $('#timerRange').oninput=e=>{settings.timer=+e.target.value;saveSettings()};
+    $('#textRange').oninput=e=>{settings.text=+e.target.value;document.documentElement.style.setProperty('--text-scale',settings.text/100);saveSettings()};
+    $('#hintsToggle').onchange=e=>{settings.hints=e.target.checked;saveSettings()};
+  }
+  function applyPalette(){
+    if(settings.colorblind){
+      document.documentElement.style.setProperty('--rare','#00a6d6');document.documentElement.style.setProperty('--very','#ef7bb5');
+    }
+  }
+
+  /* AUDIO */
+  let audioCtx=null,masterGain=null,droneOsc=null,droneGain=null;
+  function ensureAudio(){
+    if(!audioCtx){
+      const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+      audioCtx=new AC();masterGain=audioCtx.createGain();masterGain.gain.value=settings.volume;masterGain.connect(audioCtx.destination);
+      droneOsc=audioCtx.createOscillator();droneGain=audioCtx.createGain();droneOsc.type='sine';droneOsc.frequency.value=42;droneGain.gain.value=.018;
+      droneOsc.connect(droneGain);droneGain.connect(masterGain);droneOsc.start();
+    }
+    if(audioCtx.state==='suspended')audioCtx.resume();
+  }
+  function tone(freq,duration=.12,type='sine',gain=.08,delay=0){
+    if(!audioCtx||settings.volume<=0)return;
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain(),now=audioCtx.currentTime+delay;
+    o.type=type;o.frequency.setValueAtTime(freq,now);g.gain.setValueAtTime(gain,now);g.gain.exponentialRampToValueAtTime(.001,now+duration);
+    o.connect(g);g.connect(masterGain);o.start(now);o.stop(now+duration);
+  }
+  function chime(tier){ensureAudio();const base=[220,280,360,460,580,760][tier];tone(base,.2,'sine',.09,0);tone(base*1.5,.35,'triangle',.06,.06);if(tier===5)tone(base*2,.5,'sine',.05,.12)}
+  function sonar(){ensureAudio();tone(90,.5,'sine',.12);setTimeout(()=>tone(70,.4,'sine',.08),250)}
+  function timerTick(){ensureAudio();tone(520,.04,'square',.025)}
+  function vibrate(pattern){if(settings.haptics&&navigator.vibrate)navigator.vibrate(pattern)}
+  document.addEventListener('pointerdown',()=>ensureAudio(),{once:true});
+
+  /* RENDERER */
+  const canvas=$('#scene'),glCanvasCtx=canvas.getContext('webgl2',{antialias:false,alpha:false})||canvas.getContext('webgl',{antialias:false,alpha:false});
+  let ctx2=null,isWebGL=!!glCanvasCtx;
+  if(!isWebGL)ctx2=canvas.getContext('2d');
+  let quality=settings.quality==='Ultra'?1.5:(settings.quality==='High'?1.25:settings.quality==='Low'?.65:.9),frameCount=0,frameTimeAvg=16.7,lastFrame=performance.now(),particles=[];
+  function setQuality(){
+    if(settings.quality==='Low')quality=.65;else if(settings.quality==='Medium')quality=.9;else if(settings.quality==='High')quality=1.25;else if(settings.quality==='Ultra')quality=1.5;else quality=frameTimeAvg<22?.9:.65;
+  }
+  function resize(){
+    const dpr=Math.min(window.devicePixelRatio||1,settings.quality==='Ultra'?3:2)*quality;
+    canvas.width=Math.max(1,Math.floor(innerWidth*dpr));canvas.height=Math.max(1,Math.floor(innerHeight*dpr));
+  }
+  window.addEventListener('resize',resize);resize();
+  function makeParticles(){
+    const count=quality<.7?35:quality<1?70:130;particles=Array.from({length:count},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*2,s:.02+Math.random()*.08,p:Math.random()*6.28}));
+  }
+  makeParticles();
+  function depthColors(depth){
+    const d=Math.min(1,(depth||0)/5000);
+    if(d<.25){const t=d/.25;return mix([15,100,132],[18,42,78],t)}
+    if(d<.55){const t=(d-.25)/.3;return mix([18,42,78],[3,16,42],t)}
+    return mix([3,16,42],[2,5,15],(d-.55)/.45);
+  }
+  function mix(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t))}
+  function render(now){
+    requestAnimationFrame(render);if(document.hidden||state.pause)return;
+    const dt=Math.min(50,now-lastFrame);lastFrame=now;frameTimeAvg=frameTimeAvg*.96+dt*.04;if(frameCount++%120===0&&settings.quality==='Auto')setQuality();
+    const depth=state.depth||0,c=depthColors(depth);
+    if(isWebGL){
+      const gl=glCanvasCtx;gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(c[0]/255,c[1]/255,c[2]/255,1);gl.clear(gl.COLOR_BUFFER_BIT);
+    }else{
+      ctx2.fillStyle=`rgb(${c.join(',')})`;ctx2.fillRect(0,0,canvas.width,canvas.height);
+      ctx2.save();ctx2.translate(canvas.width/2+Math.sin(now*.0004)*12,canvas.height*.58+Math.sin(now*.001)*8);
+      ctx2.fillStyle='rgba(5,15,22,.92)';ctx2.beginPath();ctx2.ellipse(0,0,70*quality,28*quality,0,0,Math.PI*2);ctx2.fill();
+      ctx2.fillStyle='rgba(98,231,255,.65)';ctx2.beginPath();ctx2.ellipse(-20*quality,-5*quality,14*quality,9*quality,0,0,Math.PI*2);ctx2.fill();
+      ctx2.fillStyle='rgba(98,231,255,.12)';ctx2.beginPath();ctx2.moveTo(-20*quality,-20*quality);ctx2.lineTo(-canvas.width*.35,-canvas.height*.4);ctx2.lineTo(canvas.width*.35,-canvas.height*.25);ctx2.closePath();ctx2.fill();
+      ctx2.restore();
+      particles.forEach(p=>{p.y-=p.s*dt*.0008;if(p.y<0)p.y=1;p.x+=Math.sin(now*.0003+p.p)*.00008;ctx2.fillStyle=`rgba(190,235,255,${.25+p.r*.08})`;ctx2.beginPath();ctx2.arc(p.x*canvas.width,p.y*canvas.height,p.r*quality,0,Math.PI*2);ctx2.fill()});
+      const rays=depth<1600?1:0;if(rays){ctx2.save();ctx2.globalAlpha=.07;ctx2.fillStyle='#aef';ctx2.beginPath();ctx2.moveTo(canvas.width*.2,0);ctx2.lineTo(canvas.width*.52,canvas.height*.8);ctx2.lineTo(canvas.width*.7,canvas.height*.8);ctx2.closePath();ctx2.fill();ctx2.restore()}
+    }
+  }
+  requestAnimationFrame(render);
+  function togglePause(force){
+    state.pause=typeof force==='boolean'?force:!state.pause;
+    $('#pauseOverlay').classList.toggle('show',state.pause);
+    if(state.pause){clearInterval(state.timerId)}
+    else if(!state.reveal&&state.mode){state.deadline=performance.now()+state.remaining*1000;state.timerId=setInterval(tick,100)}
+  }
+  document.addEventListener('visibilitychange',()=>{if(document.hidden&&!state.reveal&&state.mode)togglePause(true)});
+  window.addEventListener('blur',()=>{if(!state.reveal&&state.mode)togglePause(true)});
+
+  /* GAME LOOP BINDINGS & BOOT */
+  $('#submitBtn').onclick=()=>submitAnswer(false);$('#answerInput').onkeydown=e=>{if(e.key==='Enter')submitAnswer(false)};
+  $('#nextBtn').onclick=nextPrompt;$('#dailyBtn').onclick=()=>startDive('daily');$('#endlessBtn').onclick=()=>startDive('endless');
+  $('#packsBtn').onclick=()=>{renderPacks();showScreen('#packsScreen')};$('#howBtn').onclick=()=>showScreen('#howScreen');
+  $('#statsBtn').onclick=()=>{renderStats();showScreen('#statsScreen')};$('#settingsBtn').onclick=()=>{updateSettingsUI();showScreen('#settingsScreen')};
+  $$('.backBtn').forEach(b=>b.onclick=()=>showScreen('#titleScreen'));$('#againBtn').onclick=()=>startDive('endless');
+  $('#pauseBtn').onclick=()=>togglePause();$('#resumeBtn').onclick=()=>togglePause(false);
+  $('#shareBtn').onclick=()=>shareResult(false);$('#copyBtn').onclick=()=>shareResult(true);
+  $('#exportBtn').onclick=()=>{
+    const items=store.get('deepwell_unrecognized',state.unrecognized||[])||[];
+    const blob=new Blob([JSON.stringify(items,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='deepwell-unrecognized.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.mode&&!state.reveal)togglePause()});
+  bindSettings();applyPalette();updateTitle();setInterval(updateTitle,60000);
+
+  function validateData(){
+    const errors=[];let promptCount=0;
+    if(PROMPT_DATA.length!==12)errors.push('Expected 12 categories');
+    const names=new Set();
+    PROMPT_DATA.forEach(cat=>{
+      if(cat.prompts.length!==20)errors.push(`${cat.name}: expected 20 prompts`);
+      cat.prompts.forEach(()=>promptCount++);
+      const pool=ANSWER_POOLS[cat.name];
+      if(!pool||pool.length<25||pool.length>60)errors.push(`${cat.name}: answer pool must contain 25-60 answers`);
+      pool&&pool.forEach(name=>{const key=normalize(name);if(names.has(key+'|'+cat.name))errors.push(`Duplicate name: ${name}`);names.add(key+'|'+cat.name)});
+    });
+    if(promptCount!==240)errors.push(`Expected 240 prompts, got ${promptCount}`);
+    return errors;
+  }
+  if(new URLSearchParams(location.search).has('debug')){window.DEEPWELL_DEBUG={validateData,matchAnswer,buildPrompts,PROMPT_DATA,ANSWER_POOLS};const errors=validateData();console.log(errors.length?errors:'DEEPWELL DATA VALID: 12×20, 240 prompts')}
+  </script>
+</body>
+</html>
